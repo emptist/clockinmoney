@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每一秒都在赚钱</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  background: #04080f;
+  color: #fff;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  user-select: none;
+}
+canvas#bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+
+/* ── SETUP ── */
+#setup {
+  position: fixed; inset: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity .7s ease, transform .7s ease;
+}
+#setup.hide { opacity: 0; transform: scale(1.06); pointer-events: none; }
+
+.card-wrap {
+  position: relative; border-radius: 28px; padding: 2px; overflow: hidden;
+  width: min(calc(100vw - 32px), 460px);
+}
+.card-wrap::before {
+  content: ''; position: absolute; inset: -100%;
+  background: conic-gradient(transparent 0deg, #FFD700 40deg, #FFA500 80deg, #FF6B00 100deg, transparent 130deg);
+  animation: spin-border 3s linear infinite;
+}
+@keyframes spin-border { to { transform: rotate(360deg); } }
+.card-inner {
+  position: relative; border-radius: 26px;
+  background: rgba(4,8,15,.96); padding: 48px 52px;
+  display: flex; flex-direction: column; align-items: center; gap: 26px;
+  z-index: 1; width: 100%;
+}
+.setup-title { display: flex; gap: 2px; justify-content: center; }
+.setup-title span {
+  font-size: 2.2rem; font-weight: 800; color: #FFD700;
+  text-shadow: 0 0 20px rgba(255,215,0,.8), 0 0 60px rgba(255,150,0,.4);
+  opacity: 0; transform: translateY(20px);
+  animation: char-in .5s ease forwards;
+}
+.setup-title span:nth-child(1){animation-delay:.05s}
+.setup-title span:nth-child(2){animation-delay:.14s}
+.setup-title span:nth-child(3){animation-delay:.23s}
+.setup-title span:nth-child(4){animation-delay:.32s}
+.setup-title span:nth-child(5){animation-delay:.41s}
+@keyframes char-in { to { opacity:1; transform:translateY(0); } }
+.setup-sub {
+  font-size: .88rem; color: #445566; letter-spacing: 2px; margin-top: -16px;
+  animation: fadein .6s .7s ease both;
+}
+@keyframes fadein { from{opacity:0} to{opacity:1} }
+.input-group { display:flex; flex-direction:column; gap:14px; width:100%; animation:fadein .6s .6s ease both; }
+.field { display:flex; flex-direction:column; gap:5px; }
+.field label { font-size:.75rem; color:#556677; letter-spacing:1.5px; }
+.unit-wrap { position:relative; }
+.unit-wrap::after {
+  content: attr(data-unit); position:absolute; right:14px; top:50%; transform:translateY(-50%);
+  color:#FFD700; font-size:.85rem; opacity:.7; pointer-events:none;
+}
+.field input {
+  width:100%; background:rgba(255,215,0,.04); border:1px solid rgba(255,215,0,.15);
+  border-radius:10px; padding:11px 46px 11px 14px; font-size:1.05rem; color:#fff;
+  outline:none; text-align:right; transition:border-color .2s, background .2s;
+}
+.field input:focus { border-color:rgba(255,215,0,.5); background:rgba(255,215,0,.07); }
+#start-btn {
+  width:100%; padding:15px; font-size:1.1rem; font-weight:800; color:#04080f;
+  background:linear-gradient(135deg,#FFD700,#FFA500,#FF8C00); border:none;
+  border-radius:14px; cursor:pointer; letter-spacing:4px; position:relative; overflow:hidden;
+  animation: fadein .6s .8s ease both, btn-pulse 2.5s 1.5s ease-in-out infinite;
+  box-shadow:0 0 30px rgba(255,165,0,.4), 0 4px 0 rgba(180,100,0,.5);
+  transition:transform .12s;
+}
+#start-btn::after {
+  content:''; position:absolute; top:0; left:-100%; width:60%; height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),transparent);
+  animation:sheen 3s 2s ease infinite;
+}
+@keyframes sheen { 0%{left:-100%} 30%{left:150%} 100%{left:150%} }
+@keyframes btn-pulse {
+  0%,100%{box-shadow:0 0 30px rgba(255,165,0,.4),0 4px 0 rgba(180,100,0,.5)}
+  50%{box-shadow:0 0 60px rgba(255,165,0,.9),0 4px 0 rgba(180,100,0,.5)}
+}
+#start-btn:hover{transform:translateY(-2px)} #start-btn:active{transform:translateY(1px)}
+
+@keyframes slideup { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+.spark {
+  position:fixed; pointer-events:none; font-size:var(--sz);
+  animation:spark-fly var(--dur) var(--delay) ease-out both; z-index:55;
+}
+@keyframes spark-fly {
+  0%{transform:translate(0,0) scale(1) rotate(0deg);opacity:1}
+  100%{transform:translate(var(--tx),var(--ty)) scale(0) rotate(var(--rot));opacity:0}
+}
+
+/* ── MAIN ── */
+#main {
+  position:fixed; inset:0; z-index:10;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; pointer-events:none; transition:opacity 1s ease;
+}
+#main.show{opacity:1;pointer-events:auto}
+.main-card {
+  position:relative; background:rgba(4,8,15,.72); backdrop-filter:blur(20px);
+  border:1px solid rgba(255,215,0,.12); border-radius:28px;
+  padding:44px 60px 36px; text-align:center;
+  width: min(calc(100vw - 32px), 460px);
+  box-shadow:0 0 0 1px rgba(255,215,0,.05),0 20px 80px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.04);
+  animation:card-breathe 4s ease-in-out infinite;
+}
+@keyframes card-breathe {
+  0%,100%{box-shadow:0 0 0 1px rgba(255,215,0,.05),0 20px 80px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.04)}
+  50%{box-shadow:0 0 0 1px rgba(255,215,0,.15),0 20px 80px rgba(0,0,0,.7),0 0 60px rgba(255,180,0,.1),inset 0 1px 0 rgba(255,255,255,.04)}
+}
+.main-label { font-size:.72rem; letter-spacing:3px; color:#445566; text-transform:uppercase; margin-bottom:14px; }
+.counter-row { display:flex; align-items:baseline; justify-content:center; gap:6px; line-height:1; }
+.counter-sign { font-size:clamp(1.4rem, 5vw, 2.2rem); font-weight:700; color:rgba(255,215,0,.6); font-family:'SF Mono','Courier New',monospace; }
+.counter-num {
+  font-size: clamp(2.6rem, 12vw, 5.5rem); font-weight:800;
+  font-family:'SF Mono','Courier New',monospace; font-variant-numeric:tabular-nums;
+  color:#FFD700; letter-spacing:-3px;
+  text-shadow:0 0 30px rgba(255,215,0,.6),0 0 80px rgba(255,150,0,.3),0 2px 0 rgba(0,0,0,.6);
+}
+.counter-num.flash {
+  text-shadow:0 0 50px rgba(255,215,0,1),0 0 100px rgba(255,180,0,.8),0 0 160px rgba(255,120,0,.4),0 2px 0 rgba(0,0,0,.6);
+}
+.divider { width:100%; height:1px; margin:24px 0 20px; background:linear-gradient(90deg,transparent,rgba(255,215,0,.15),transparent); }
+.timer-display { font-size:clamp(1.1rem, 4.5vw, 1.6rem); font-weight:300; font-family:'SF Mono','Courier New',monospace; color:rgba(255,255,255,.22); letter-spacing:4px; }
+#exit-btn {
+  display:inline-block; margin-top:28px; padding:8px 24px; font-size:.78rem; letter-spacing:2px;
+  color:rgba(255,255,255,.18); background:none; border:1px solid rgba(255,255,255,.06);
+  border-radius:20px; cursor:pointer; transition:color .2s,border-color .2s,background .2s;
+}
+#exit-btn:hover { color:rgba(255,200,100,.8); border-color:rgba(255,180,0,.3); background:rgba(255,150,0,.06); }
+
+/* ── OFFERING ── */
+#offering {
+  position:fixed; inset:0; z-index:20;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+  opacity:0; pointer-events:none;
+  transition:opacity .8s ease;
+  background:radial-gradient(ellipse at 50% 40%, rgba(180,100,0,.18) 0%, rgba(4,8,15,0) 70%);
+}
+#offering.show { opacity:1; pointer-events:auto; }
+
+.off-label { font-size:.75rem; letter-spacing:4px; color:#7a6030; text-transform:uppercase; animation:fadein .6s ease both; }
+.off-amount {
+  font-size:2.6rem; font-weight:800;
+  font-family:'SF Mono','Courier New',monospace;
+  color:#DAA520;
+  text-shadow:0 0 20px rgba(218,165,32,.5);
+  animation:fadein .6s .1s ease both;
+}
+.off-amount .off-sign { font-size:1.6rem; opacity:.7; vertical-align:.2em; margin-right:4px; }
+
+.buddha-wrap {
+  position:relative; display:flex; align-items:center; justify-content:center;
+  animation:fadein .8s .2s ease both;
+}
+.buddha-svg {
+  width:200px; height:200px; object-fit:cover;
+  border-radius:50%;
+  box-shadow:0 0 18px rgba(255,215,0,.55), 0 0 50px rgba(255,160,0,.3);
+  animation:buddha-pulse 3.5s ease-in-out infinite;
+}
+@keyframes buddha-pulse {
+  0%,100%{box-shadow:0 0 18px rgba(255,215,0,.55), 0 0 50px rgba(255,160,0,.3)}
+  50%{box-shadow:0 0 35px rgba(255,215,0,.9), 0 0 80px rgba(255,180,0,.55)}
+}
+
+/* Invisible target for coin flight */
+#bowl-target { position:absolute; width:4px; height:4px; bottom:30%; left:50%; }
+
+.blessing {
+  font-size:1.3rem; font-weight:600; color:#cc9900; letter-spacing:4px;
+  text-shadow:0 0 20px rgba(255,200,0,.5);
+  opacity:0; transform:translateY(10px);
+  transition:opacity .8s ease, transform .8s ease;
+}
+.blessing.show { opacity:1; transform:translateY(0); }
+.blessing-sub {
+  font-size:.82rem; color:#5a4820; letter-spacing:2px;
+  opacity:0; transition:opacity .8s .3s ease;
+}
+.blessing-sub.show { opacity:1; }
+#restart-btn {
+  margin-top:8px; padding:10px 32px; font-size:.85rem; font-weight:700;
+  color:#04080f; background:linear-gradient(135deg,#DAA520,#b8860b);
+  border:none; border-radius:24px; cursor:pointer; letter-spacing:3px;
+  opacity:0; transform:translateY(8px);
+  transition:opacity .6s .6s ease, transform .6s .6s ease, box-shadow .15s;
+  box-shadow:0 4px 20px rgba(200,150,0,.3);
+}
+#restart-btn.show { opacity:1; transform:translateY(0); }
+#restart-btn:hover { box-shadow:0 4px 30px rgba(200,150,0,.6); }
+
+@media (max-width: 430px) {
+  .card-inner { padding: 36px 24px; gap: 20px; }
+  .setup-title span { font-size: 1.8rem; }
+  .main-card { padding: 36px 24px 28px; border-radius: 22px; }
+  .divider { margin: 18px 0 14px; }
+  #exit-btn { margin-top: 20px; }
+  .buddha-svg { width: 150px; height: 150px; }
+  .off-amount { font-size: 2rem; }
+  .blessing { font-size: 1.1rem; letter-spacing: 2px; }
+  #offering { gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+
+<!-- Setup -->
+<div id="setup">
+  <div class="card-wrap">
+    <div class="card-inner">
+      <div class="setup-title">
+        <span>忍</span><span>住</span><span>就</span><span>是</span><span>赢</span>
+      </div>
+      <div class="input-group">
+        <div class="field">
+          <label>月薪</label>
+          <div class="unit-wrap" data-unit="元">
+            <input type="number" id="salary" placeholder="请输入月薪" min="1">
+          </div>
+        </div>
+        <div class="field">
+          <label>每天工作时长</label>
+          <div class="unit-wrap" data-unit="小时">
+            <input type="number" id="hours" placeholder="请输入时长" min="1" max="24">
+          </div>
+        </div>
+        <div class="field">
+          <label>每月工作天数</label>
+          <div class="unit-wrap" data-unit="天">
+            <input type="number" id="days" placeholder="请输入天数" min="1" max="31">
+          </div>
+        </div>
+      </div>
+      <button id="start-btn" onclick="startWork()">开 始 上 班</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Main -->
+<div id="main">
+  <div class="main-card">
+    <div class="main-label">今日已入账</div>
+    <div class="counter-row">
+      <span class="counter-sign">¥</span>
+      <span class="counter-num" id="counter">0.0000</span>
+    </div>
+    <div class="divider"></div>
+    <div class="timer-display" id="timer">00:00:00</div>
+    <button id="exit-btn" onclick="exitWork()">下 班</button>
+  </div>
+</div>
+
+<!-- Offering -->
+<div id="offering">
+  <div class="off-label">今日供养</div>
+  <div class="off-amount"><span class="off-sign">¥</span><span id="off-num">0.00</span></div>
+
+  <div class="buddha-wrap">
+    <img class="buddha-svg" src="buddha.png" alt="佛">
+    <!-- Invisible coin target at bowl position -->
+    <div id="bowl-target" style="position:absolute;width:6px;height:6px;bottom:34%;left:50%;transform:translateX(-50%);pointer-events:none;"></div>
+  </div>
+
+  <div class="blessing" id="blessing">善哉善哉 · 功德无量</div>
+  <div class="blessing-sub" id="blessing-sub">愿你明日 · 心安发财</div>
+  <button id="restart-btn" onclick="resetToSetup()">明日再战</button>
+</div>
+
+<script>
+
+// ── Canvas: coins only ──
+const canvas = document.getElementById('bg');
+const ctx = canvas.getContext('2d');
+let coins = [], canvasRunning = false;
+
+function resize() {
+  canvas.width  = innerWidth;
+  canvas.height = innerHeight;
+  if (canvasRunning) initCoins();
+}
+
+function makeCoin(scatter) {
+  const palettes = [
+    {main:'#FFD700', edge:'#FFF5A0', inner:'#cc9900', shadow:'#8b6914'},
+    {main:'#FFA500', edge:'#FFD880', inner:'#cc7000', shadow:'#8b4500'},
+    {main:'#DAA520', edge:'#FFE580', inner:'#b8860b', shadow:'#7a5c00'},
+    {main:'#FFB700', edge:'#FFE840', inner:'#cc8800', shadow:'#886000'},
+  ];
+  const p = palettes[Math.floor(Math.random() * palettes.length)];
+  const big = Math.random() < .15;
+  const r = big ? 18 + Math.random() * 12 : 6 + Math.random() * 12;
+  return {
+    x: Math.random() * canvas.width,
+    y: scatter ? Math.random() * canvas.height : -r * 3 - Math.random() * 300,
+    r,
+    rot: Math.random() * Math.PI * 2,
+    rotSpeed: (Math.random() - .5) * .035,
+    vy: .45 + Math.random() * 1.4,
+    vx: (Math.random() - .5) * .4,
+    alpha: (.28 + Math.random() * .45) * (big ? 1.1 : 1),
+    glow: Math.random() < .22,
+    ...p,
+  };
+}
+
+function initCoins() {
+  const n = Math.min(Math.floor(innerWidth / 18), 90);
+  coins = Array.from({length: n}, () => makeCoin(true));
+}
+
+function drawCoin(c) {
+  ctx.save();
+  ctx.globalAlpha = c.alpha;
+  ctx.translate(c.x, c.y);
+  ctx.rotate(c.rot);
+
+  if (c.glow) { ctx.shadowColor = 'rgba(255,215,0,.85)'; ctx.shadowBlur = c.r * 1.8; }
+
+  // Radial gradient for 3D look
+  const g = ctx.createRadialGradient(-c.r*.3, -c.r*.3, 0, 0, 0, c.r);
+  g.addColorStop(0, c.edge);
+  g.addColorStop(.45, c.main);
+  g.addColorStop(1, c.shadow);
+
+  ctx.beginPath();
+  ctx.arc(0, 0, c.r, 0, Math.PI * 2);
+  ctx.fillStyle = g;
+  ctx.fill();
+
+  // Outer rim
+  ctx.strokeStyle = c.edge;
+  ctx.lineWidth = c.r * .09;
+  ctx.globalAlpha = c.alpha * .55;
+  ctx.stroke();
+
+  // Inner ring
+  ctx.beginPath();
+  ctx.arc(0, 0, c.r * .68, 0, Math.PI * 2);
+  ctx.strokeStyle = c.inner;
+  ctx.lineWidth = c.r * .07;
+  ctx.globalAlpha = c.alpha * .4;
+  ctx.stroke();
+
+  // ¥
+  ctx.globalAlpha = c.alpha * .75;
+  ctx.fillStyle = c.shadow;
+  ctx.font = `bold ${c.r * 1.05}px serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('¥', 0, 1);
+
+  ctx.restore();
+
+  c.x += c.vx; c.y += c.vy; c.rot += c.rotSpeed;
+  if (c.y > canvas.height + c.r * 3) Object.assign(c, makeCoin(false));
+}
+
+function renderCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.shadowBlur = 0;
+  for (const c of coins) drawCoin(c);
+  requestAnimationFrame(renderCanvas);
+}
+
+
+// ── Main ticker ──
+let perSecond = 0, startTs = 0, running = false, lastSec = -1;
+
+function formatTime(ms) {
+  const s = Math.floor(ms/1000);
+  return [Math.floor(s/3600), Math.floor((s%3600)/60), s%60].map(n=>String(n).padStart(2,'0')).join(':');
+}
+
+function tick() {
+  if (!running) return;
+  const ms  = Date.now() - startTs;
+  const sec = ms / 1000;
+  document.getElementById('counter').textContent = (sec * perSecond).toFixed(4);
+  document.getElementById('timer').textContent   = formatTime(ms);
+  const cur = Math.floor(sec);
+  if (cur !== lastSec && cur > 0) {
+    lastSec = cur;
+    const el = document.getElementById('counter');
+    el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  }
+  requestAnimationFrame(tick);
+}
+
+// ── Offering animation ──
+function flyOfferingCoin(tx, ty, onDone) {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;pointer-events:none;z-index:85;font-size:' + (1.1+Math.random()*.9) + 'rem;';
+  el.textContent = '🪙';
+  const sx = 60 + Math.random() * (innerWidth - 120);
+  const sy = innerHeight + 10;
+  el.style.left = sx + 'px';
+  el.style.top  = sy + 'px';
+  document.body.appendChild(el);
+
+  const cpx = sx + (tx-sx)*.5 + (Math.random()-.5)*180;
+  const cpy = sy - (sy-ty)*.55 - Math.random()*100;
+  const dur = 950 + Math.random()*500;
+  const t0  = performance.now();
+
+  (function frame(now) {
+    let t = Math.min((now-t0)/dur, 1);
+    const e = t < .5 ? 2*t*t : -1+(4-2*t)*t;
+    const bx = (1-e)*(1-e)*sx + 2*(1-e)*e*cpx + e*e*tx;
+    const by = (1-e)*(1-e)*sy + 2*(1-e)*e*cpy + e*e*ty;
+    el.style.left = bx + 'px';
+    el.style.top  = by + 'px';
+    el.style.transform = `scale(${1-e*.45}) rotate(${e*360}deg)`;
+    el.style.opacity   = t > .78 ? (1-t)/.22 : 1;
+    if (t < 1) requestAnimationFrame(frame);
+    else { el.remove(); onDone(tx, ty); }
+  })(t0);
+}
+
+function burstAt(x, y) {
+  const icons = ['✨','💫','🌟','⭐'];
+  for (let i = 0; i < 6; i++) {
+    const p = document.createElement('div');
+    p.style.cssText = `position:fixed;pointer-events:none;z-index:86;left:${x}px;top:${y}px;`;
+    p.style.setProperty('--sz', (.7+Math.random()*.6)+'rem');
+    const a = Math.random()*Math.PI*2, d = 15+Math.random()*35;
+    p.style.setProperty('--tx', Math.cos(a)*d+'px');
+    p.style.setProperty('--ty', Math.sin(a)*d+'px');
+    p.style.setProperty('--dur', (.35+Math.random()*.25)+'s');
+    p.style.setProperty('--delay', '0s');
+    p.style.setProperty('--rot', (Math.random()-.5)*360+'deg');
+    p.textContent = icons[Math.floor(Math.random()*icons.length)];
+    p.className = 'spark';
+    document.body.appendChild(p);
+    setTimeout(() => p.remove(), 700);
+  }
+}
+
+function launchOfferingCoins(amount) {
+  const rect = document.getElementById('bowl-target').getBoundingClientRect();
+  const tx = rect.left + rect.width/2;
+  const ty = rect.top  + rect.height/2;
+  const count = Math.min(Math.max(Math.floor(amount/2.5), 14), 38);
+  let done = 0;
+
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      flyOfferingCoin(tx, ty, (x, y) => {
+        burstAt(x, y);
+        done++;
+        if (done >= count) setTimeout(showBlessing, 350);
+      });
+    }, i * 95 + Math.random() * 60);
+  }
+}
+
+function showBlessing() {
+  document.getElementById('blessing').classList.add('show');
+  document.getElementById('blessing-sub').classList.add('show');
+  document.getElementById('restart-btn').classList.add('show');
+}
+
+// ── Controls ──
+function startWork() {
+  const salary = parseFloat(document.getElementById('salary').value);
+  const hours  = parseFloat(document.getElementById('hours').value);
+  const days   = parseFloat(document.getElementById('days').value);
+  if (!salary || salary <= 0) { alert('请先填写你的月薪'); return; }
+  if (!hours  || hours  <= 0) { alert('请先填写每天工作时长'); return; }
+  if (!days   || days   <= 0) { alert('请先填写每月工作天数'); return; }
+  perSecond = salary / (days * hours * 3600);
+  document.getElementById('setup').classList.add('hide');
+  document.getElementById('main').classList.add('show');
+  startTs = Date.now(); running = true; lastSec = -1;
+  tick();
+}
+
+function exitWork() {
+  const earned = (Date.now() - startTs) / 1000 * perSecond;
+  running = false;
+  document.getElementById('main').classList.remove('show');
+  document.getElementById('off-num').textContent = earned.toFixed(2);
+
+  // Reset blessing/button state
+  document.getElementById('blessing').classList.remove('show');
+  document.getElementById('blessing-sub').classList.remove('show');
+  document.getElementById('restart-btn').classList.remove('show');
+
+  document.getElementById('offering').classList.add('show');
+  setTimeout(() => launchOfferingCoins(earned), 700);
+}
+
+function resetToSetup() {
+  document.getElementById('offering').classList.remove('show');
+  document.getElementById('counter').textContent = '0.0000';
+  document.getElementById('timer').textContent   = '00:00:00';
+  document.getElementById('setup').classList.remove('hide');
+}
+
+// ── Boot ──
+resize();
+canvasRunning = true;
+initCoins();
+renderCanvas();
+
+window.addEventListener('resize', resize);
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !document.getElementById('setup').classList.contains('hide')) startWork();
+});
+</script>
+</body>
+</html>
