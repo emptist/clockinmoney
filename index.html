@@ -477,6 +477,32 @@ function showBlessing() {
   document.getElementById('restart-btn').classList.add('show');
 }
 
+// ── Settings persistence ──
+const SETTINGS_KEY = 'clockinmoney_settings';
+
+function loadSettings() {
+  try {
+    const saved = localStorage.getItem(SETTINGS_KEY);
+    if (saved) {
+      const settings = JSON.parse(saved);
+      if (settings.salary) document.getElementById('salary').value = settings.salary;
+      if (settings.hours) document.getElementById('hours').value = settings.hours;
+      if (settings.days) document.getElementById('days').value = settings.days;
+    }
+  } catch (e) {}
+}
+
+function saveSettings() {
+  try {
+    const settings = {
+      salary: document.getElementById('salary').value,
+      hours: document.getElementById('hours').value,
+      days: document.getElementById('days').value
+    };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch (e) {}
+}
+
 // ── Controls ──
 function startWork() {
   const salary = parseFloat(document.getElementById('salary').value);
@@ -485,6 +511,7 @@ function startWork() {
   if (!salary || salary <= 0) { alert('请先填写你的月薪'); return; }
   if (!hours  || hours  <= 0) { alert('请先填写每天工作时长'); return; }
   if (!days   || days   <= 0) { alert('请先填写每月工作天数'); return; }
+  saveSettings();
   perSecond = salary / (days * hours * 3600);
   document.getElementById('setup').classList.add('hide');
   document.getElementById('main').classList.add('show');
@@ -519,6 +546,7 @@ resize();
 canvasRunning = true;
 initCoins();
 renderCanvas();
+loadSettings();
 
 window.addEventListener('resize', resize);
 document.addEventListener('keydown', e => {
