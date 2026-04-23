@@ -154,6 +154,8 @@ canvas#bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 #offering.show { opacity:1; pointer-events:auto; }
 
 .off-label { font-size:.75rem; letter-spacing:4px; color:#7a6030; text-transform:uppercase; animation:fadein .6s ease both; }
+.total-earned { font-size:.55rem; color:#8a7868; margin-top:2px; animation:fadein .6s ease both; }
+.total-num { color:#9a8565; font-weight:400; }
 .off-amount {
   font-size:2.6rem; font-weight:800;
   font-family:'SF Mono','Courier New',monospace;
@@ -272,6 +274,8 @@ canvas#bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 <div id="offering">
   <div class="off-label">今日供养</div>
   <div class="off-amount"><span class="off-sign">¥</span><span id="off-num">0.00</span></div>
+  
+  <div class="total-earned">累计收入: <span class="total-num" id="total-num">¥0.00</span></div>
 
   <div class="buddha-wrap">
     <img class="buddha-svg" src="buddha.png" alt="佛">
@@ -393,6 +397,15 @@ function tick() {
   if (!running) return;
   const ms  = Date.now() - startTs;
   const sec = ms / 1000;
+  
+  // Check if reached daily work hours
+  const hours = parseFloat(document.getElementById('hours').value);
+  const maxSec = hours * 3600;
+  if (sec >= maxSec) {
+    exitWork();
+    return;
+  }
+  
   document.getElementById('counter').textContent = (sec * perSecond).toFixed(4);
   document.getElementById('timer').textContent   = formatTime(ms);
   const cur = Math.floor(sec);
@@ -479,6 +492,7 @@ function showBlessing() {
 
 // ── Settings persistence ──
 const SETTINGS_KEY = 'clockinmoney_settings';
+const STATE_KEY = 'clockinmoney_state';
 
 function loadSettings() {
   try {
@@ -503,6 +517,46 @@ function saveSettings() {
   } catch (e) {}
 }
 
+function saveWorkState() {
+  try {
+    const state = {
+      running: running,
+      startTs: startTs,
+      perSecond: perSecond,
+      savedDate: new Date().toDateString()
+    };
+    localStorage.setItem(STATE_KEY, JSON.stringify(state));
+  } catch (e) {}
+}
+
+function loadWorkState() {
+  try {
+    const saved = localStorage.getItem(STATE_KEY);
+    if (saved) {
+      const state = JSON.parse(saved);
+      const today = new Date().toDateString();
+      
+      // 如果保存的状态是今天的，并且是 running，说明上次没下班
+      if (state.running && state.savedDate === today) {
+        perSecond = state.perSecond;
+        startTs = state.startTs;
+        running = true;
+        document.getElementById('setup').classList.add('hide');
+        document.getElementById('main').classList.add('show');
+        lastSec = -1;
+        tick();
+        return true;
+      }
+      
+      // 如果不是今天，需要重置
+      if (state.savedDate !== today) {
+        localStorage.removeItem(STATE_KEY);
+      }
+    }
+  } catch (e) {}
+  return false;
+}
+
 // ── Controls ──
 function startWork() {
   const salary = parseFloat(document.getElementById('salary').value);
@@ -516,12 +570,22 @@ function startWork() {
   document.getElementById('setup').classList.add('hide');
   document.getElementById('main').classList.add('show');
   startTs = Date.now(); running = true; lastSec = -1;
+  saveWorkState();
   tick();
 }
 
 function exitWork() {
   const earned = (Date.now() - startTs) / 1000 * perSecond;
   running = false;
+  localStorage.removeItem(STATE_KEY);
+  
+  // Save total earnings
+  const totalKey = 'clockinmoney_total';
+  let total = parseFloat(localStorage.getItem(totalKey) || '0');
+  total += earned;
+  localStorage.setItem(totalKey, total.toString());
+  document.getElementById('total-num').textContent = '¥' + total.toFixed(2);
+  
   document.getElementById('main').classList.remove('show');
   document.getElementById('off-num').textContent = earned.toFixed(2);
 
@@ -547,6 +611,12 @@ canvasRunning = true;
 initCoins();
 renderCanvas();
 loadSettings();
+const totalKey = 'clockinmoney_total';
+const savedTotal = localStorage.getItem(totalKey);
+if (savedTotal) {
+  document.getElementById('total-num').textContent = '¥' + parseFloat(savedTotal).toFixed(2);
+}
+loadWorkState();
 
 window.addEventListener('resize', resize);
 document.addEventListener('keydown', e => {
